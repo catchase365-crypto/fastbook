@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 辅助写书工具</title>
+    <style id="theme-styles">
+        /* --- CSS Styles --- */
+        :root { /* Default Theme */
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --background-color: #f4f4f4;
+            --text-color: #333;
+            --header-color: #0056b3;
+            --border-color: #ccc;
+            --output-bg: #fff;
+            --output-border: #ddd;
+            --code-bg: #e8e8e8;
+            --pre-bg: #f4f4f4;
+            --spinner-border: #007bff;
+            --spinner-track: #f3f3f3;
+            --loading-text-color: #555;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 900px;
+            margin: auto;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+        h1, h2 { color: var(--header-color); }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="password"],
+        textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+            background-color: var(--output-bg);
+            color: var(--text-color);
+        }
+        textarea { min-height: 150px; resize: vertical; }
+
+        .button-group { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 15px; }
+        .main-button { background-color: var(--primary-color); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; transition: background-color 0.3s ease; }
+        .main-button:hover { background-color: #0056b3; }
+        .main-button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .secondary-button { background-color: var(--secondary-color); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; transition: background-color 0.3s ease; }
+        .secondary-button:hover { background-color: #5a6268; }
+        .secondary-button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .action-buttons { display: flex; align-items: center; }
+        .action-buttons button { margin-left: 10px; }
+
+        #output {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: var(--output-bg);
+            border: 1px solid var(--output-border);
+            border-radius: 5px;
+            white-space: normal;
+        }
+        .spinner {
+            border: 4px solid var(--spinner-track);
+            border-top: 4px solid var(--spinner-border);
+            border-radius: 50%;
+            width: 30px; height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text {
+            text-align: center;
+            margin-top: 10px;
+            font-style: italic;
+            color: var(--loading-text-color);
+        }
+        .chapter-output {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed var(--border-color);
+        }
+        .chapter-output:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .chapter-output h2 { margin-bottom: 10px; color: var(--header-color); }
+        .chapter-output div { padding-left: 0px; }
+        .chapter-output p[style*="color: red"] { font-weight: bold; }
+
+        /* --- Markdown Rendering Styles --- */
+        #output h1, #output h2, #output h3, #output h4, #output h5, #output h6 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            font-weight: bold;
+            color: var(--header-color);
+            line-height: 1.2;
+        }
+        #output h1 { font-size: 2em; }
+        #output h2 { font-size: 1.75em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-color); }
+        #output h3 { font-size: 1.5em; }
+        #output h4 { font-size: 1.25em; }
+        #output h5 { font-size: 1em; }
+        #output h6 { font-size: 0.9em; color: var(--secondary-color); }
+        #output p { margin-bottom: 1em; }
+        #output code {
+            background-color: var(--code-bg);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+            color: #c7254e;
+        }
+        #output pre {
+            background-color: var(--pre-bg);
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 1em;
+        }
+        #output pre code {
+            background-color: transparent;
+            padding: 0;
+            color: #333;
+        }
+        #output ul, #output ol {
+            margin-left: 20px;
+            margin-bottom: 1em;
+        }
+        #output li { margin-bottom: 0.5em; }
+        #output blockquote {
+            border-left: 4px solid var(--border-color);
+            color: #666;
+            padding: 0.5em 1em;
+            margin-left: 0;
+            margin-right: 0;
+            background-color: #f9f9f9;
+        }
+        #output a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        #output a:hover {
+            text-decoration: underline;
+        }
+
+        /* --- Theme Styles --- */
+        .theme-default { /* Already defined in :root */ }
+        .theme-dark {
+            --primary-color: #0d6efd;
+            --secondary-color: #6c757d;
+            --background-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --header-color: #55aaff;
+            --border-color: #444;
+            --output-bg: #2a2a2a;
+            --output-border: #555;
+            --code-bg: #333;
+            --pre-bg: #1f1f1f;
+            --spinner-border: #0d6efd;
+            --spinner-track: #333;
+            --loading-text-color: #aaa;
+        }
+        .theme-blue-gray {
+            --primary-color: #563d7c;
+            --secondary-color: #6c757d;
+            --background-color: #e8f0f5;
+            --text-color: #2a3a45;
+            --header-color: #3a506b;
+            --border-color: #abc;
+            --output-bg: #ffffff;
+            --output-border: #dde;
+            --code-bg: #f0f5f9;
+            --pre-bg: #f8f9fa;
+            --spinner-border: #563d7c;
+            --spinner-track: #e8f0f5;
+            --loading-text-color: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>AI 辅助写书工具</h1>
+
+    <div class="input-group">
+        <label for="apiKey">API Key:</label>
+        <input type="password" id="apiKey" placeholder="在此输入你的 API Key">
+    </div>
+
+    <div class="input-group">
+        <label for="bookTitle">书名:</label>
+        <div class="input-with-button">
+            <input type="text" id="bookTitle" placeholder="例如：AI 驱动的书籍创作实践">
+            <button id="generateDirectoryButton" class="secondary-button">生成章节目录</button>
+        </div>
+    </div>
+
+    <div class="input-group">
+        <label for="chapterDirectory">章节目录 (每行一个章节, 格式: "章节标题 - 详细描述" 或仅“章节标题”):</label>
+        <textarea id="chapterDirectory" placeholder="输入或等待AI生成目录..."></textarea>
+    </div>
+
+    <div class="input-group">
+        <label for="globalInstructions">全局指令 (可选):</label>
+        <textarea id="globalInstructions" placeholder="例如：请确保内容专业、流畅，代码示例清晰，使用 Markdown 格式。"></textarea>
+    </div>
+
+    <div class="controls-footer">
+        <button id="generateFullBookButton" class="main-button" disabled>生成全部内容</button>
+        <div class="action-buttons">
+            <button id="resetButton" class="secondary-button">重置</button>
+
+            <select id="themeSelector">
+                <option value="default">默认主题</option>
+                <option value="theme-dark">暗黑主题</option>
+                <option value="theme-blue-gray">蓝灰主题</option>
+            </select>
+
+            <button id="copyMarkdownButton" class="secondary-button" disabled>复制 Markdown</button>
+            <button id="exportMdButton" class="secondary-button" disabled>导出为 Markdown</button>
+        </div>
+    </div>
+
+    <div id="spinner" class="spinner"></div>
+    <div id="loading-status" class="loading-text"></div>
+
+    <h2>生成结果:</h2>
+    <div id="output"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script> <!-- Marked.js CDN -->
+    <script>
+        // --- JavaScript Code ---
+
+        // --- Configuration ---
+        const GENERATIVE_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
+
+        // --- DOM Elements ---
+        const apiKeyInput = document.getElementById('apiKey');
+        const bookTitleInput = document.getElementById('bookTitle');
+        const chapterDirectoryTextarea = document.getElementById('chapterDirectory');
+        const globalInstructionsTextarea = document.getElementById('globalInstructions');
+        const generateDirectoryButton = document.getElementById('generateDirectoryButton');
+        const generateFullBookButton = document.getElementById('generateFullBookButton');
+        const copyMarkdownButton = document.getElementById('copyMarkdownButton');
+        const exportMdButton = document.getElementById('exportMdButton');
+        const resetButton = document.getElementById('resetButton');
+        const themeSelector = document.getElementById('themeSelector');
+        const stylesLink = document.getElementById('theme-styles'); // Not directly used, but good to have if managing external styles
+        const outputDiv = document.getElementById('output');
+        const spinnerDiv = document.getElementById('spinner');
+        const loadingTextDiv = document.getElementById('loading-status');
+
+        let generatedBookContentHtml = ''; // Stores the raw markdown output by AI
+
+        // --- Initial Setup ---
+        const currentTheme = localStorage.getItem('theme') || 'default';
+        themeSelector.value = currentTheme;
+        applyTheme(currentTheme);
+
+        // --- Event Listeners ---
+        generateDirectoryButton.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            const bookTitle = bookTitleInput.value.trim();
+
+            if (!apiKey) { alert('请输入你的 API Key。'); return; }
+            if (!bookTitle) { alert('请输入书名。'); return; }
+
+            setLoadingState(true, '正在生成章节目录...');
+            chapterDirectoryTextarea.value = ''; // Clear previous directory
+            generatedBookContentHtml = ''; // Clear previous raw markdown
+            outputDiv.innerHTML = ''; // Clear previously rendered HTML
+            copyMarkdownButton.disabled = true;
+            exportMdButton.disabled = true;
+            generateFullBookButton.disabled = true;
+
+            try {
+                const directoryPrompt = createDirectoryGenerationPrompt(bookTitle);
+                const directoryContent = await callGenerativeAPI(apiKey, directoryPrompt);
+
+                chapterDirectoryTextarea.value = directoryContent; // Display raw markdown
+                generateFullBookButton.disabled = false;
+                loadingTextDiv.textContent = '章节目录已生成！请检查和编辑后，点击“生成全部内容”。';
+
+            } catch (error) {
+                handleError(error, '生成章节目录时出错');
+            } finally {
+                setLoadingState(false);
+            }
+        });
+
+        generateFullBookButton.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            const bookTitle = bookTitleInput.value.trim();
+            const chapterDirectoryRaw = chapterDirectoryTextarea.value.trim();
+            const globalInstructions = globalInstructionsTextarea.value.trim();
+
+            if (!apiKey || !bookTitle || !chapterDirectoryRaw) {
+                 alert('请确保 API Key, 书名, 和章节目录都已填写。'); return;
+            }
+
+            setLoadingState(true, '正在并行生成所有章节内容...');
+            copyMarkdownButton.disabled = true;
+            exportMdButton.disabled = true;
+            outputDiv.innerHTML = ''; // Clear previously rendered HTML
+            generatedBookContentHtml = ''; // Clear previous raw markdown
+
+            const chapters = parseChapterDirectory(chapterDirectoryRaw.split('\n'));
+            if (chapters.length === 0) { alert('未能解析章节目录，请检查格式。'); resetUI(); return; }
+
+            try {
+                const chapterResults = await Promise.all(
+                    chapters.map((chapter, index) =>
+                        generateSingleChapter(apiKey, bookTitle, chapterDirectoryRaw, globalInstructions, chapter, index + 1, chapters.length)
+                        .then(content => ({ chapterTitle: chapter.title, content, success: true }))
+                        .catch(error => {
+                            console.error(`Failed to generate chapter "${chapter.title}":`, error);
+                            return { chapterTitle: chapter.title, content: `错误：API 请求失败 (${error.message})`, success: false };
+                        })
+                    )
+                );
+
+                // Assemble the raw markdown content first
+                generatedBookContentHtml = assembleBookContent(chapterResults);
+                // Then render the assembled markdown to HTML for display
+                outputDiv.innerHTML = marked.parse(generatedBookContentHtml);
+                loadingTextDiv.textContent = '所有章节内容已生成，包括失败的章节报告！';
+                copyMarkdownButton.disabled = false;
+                exportMdButton.disabled = false;
+
+            } catch (error) {
+                handleError(error, '生成全部内容时发生意外错误');
+            } finally {
+                setLoadingState(false);
+            }
+        });
+
+        resetButton.addEventListener('click', () => {
+            if (confirm('确定要重置书名、章节目录、全局指令和生成结果吗（API Key 将被保留）？')) {
+                bookTitleInput.value = '';
+                chapterDirectoryTextarea.value = '';
+                globalInstructionsTextarea.value = '';
+                outputDiv.innerHTML = ''; // Clear rendered HTML
+                generatedBookContentHtml = ''; // Clear raw markdown
+
+                // Re-evaluate button states after reset
+                updateButtonStates();
+
+                loadingTextDiv.textContent = '';
+                spinnerDiv.style.display = 'none';
+
+                console.log("输入已重置。API Key 已保留。");
+            }
+        });
+
+        copyMarkdownButton.addEventListener('click', () => {
+            if (!generatedBookContentHtml) { // Check if raw markdown content exists
+                alert("没有内容可供复制。请先生成书籍内容。");
+                return;
+            }
+            // For copy, we want the raw markdown content.
+            const markdownText = convertHtmlToMarkdown(generatedBookContentHtml);
+            if (!markdownText) { alert("没有可复制的 Markdown 内容。"); return; }
+
+            navigator.clipboard.writeText(markdownText).then(() => {
+                alert('Markdown 内容已成功复制到剪贴板！');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('无法复制内容，请手动选择并复制。');
+            });
+        });
+
+        exportMdButton.addEventListener('click', () => {
+            if (!generatedBookContentHtml) { // Check if raw markdown content exists
+                alert("没有内容可供导出。请先生成书籍内容。");
+                return;
+            }
+            // For export, we want the raw markdown content.
+            const markdownText = convertHtmlToMarkdown(generatedBookContentHtml);
+            if (!markdownText || markdownText.trim() === "") {
+                 alert("没有可导出的 Markdown 内容。"); return;
+            }
+
+            const blob = new Blob([markdownText], { type: 'text/markdown;charset=utf-8;' });
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[-:.]/g, '');
+            const bookTitleForFilename = bookTitleInput.value.trim().replace(/[^a-zA-Z0-9_]/g, '_') || `book_export_${timestamp}`;
+            link.href = URL.createObjectURL(blob);
+            link.download = `${bookTitleForFilename}.md`;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            alert("Markdown 文件已开始下载！");
+        });
+
+        // --- Theme Selection Listener ---
+        themeSelector.addEventListener('change', (event) => {
+            applyTheme(event.target.value);
+            localStorage.setItem('theme', event.target.value); // Save theme preference
+        });
+
+        // --- Theme Application Function ---
+        function applyTheme(themeName) {
+            document.body.classList.remove('theme-default', 'theme-dark', 'theme-blue-gray');
+            document.body.classList.add(themeName);
+        }
+
+        // --- Button State Management ---
+        // Function to update enabled/disabled state of buttons based on input fields
+        function updateButtonStates() {
+            const apiKeyFilled = apiKeyInput.value.trim() !== '';
+            const bookTitleFilled = bookTitleInput.value.trim() !== '';
+            const chapterDirectoryFilled = chapterDirectoryTextarea.value.trim() !== '';
+
+            generateDirectoryButton.disabled = !apiKeyFilled || !bookTitleFilled;
+            generateFullBookButton.disabled = !apiKeyFilled || !bookTitleFilled || !chapterDirectoryFilled;
+            copyMarkdownButton.disabled = !generatedBookContentHtml; // Enabled only if content was generated
+            exportMdButton.disabled = !generatedBookContentHtml;     // Enabled only if content was generated
+        }
+
+        // Call updateButtonStates for initial load and add listeners to inputs
+        document.addEventListener('DOMContentLoaded', () => {
+            updateButtonStates(); // Set initial button states on page load
+
+            // Add listeners to relevant input fields to update button states dynamically
+            apiKeyInput.addEventListener('input', updateButtonStates);
+            bookTitleInput.addEventListener('input', updateButtonStates);
+            chapterDirectoryTextarea.addEventListener('input', updateButtonStates);
+            // globalInstructionsTextarea doesn't enable buttons, so no listener needed here.
+        });
+
+        // --- Core Logic Functions ---
+
+        async function callGenerativeAPI(apiKey, prompt) {
+            const response = await fetch(`${GENERATIVE_API_URL}?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        maxOutputTokens: (prompt.includes("章节目录") ? 1500 : 4000),
+                        temperature: prompt.includes("章节目录") ? 0.5 : 0.8,
+                    },
+                }),
+            });
+
+            if (!response.ok) {
+                const errorDetails = await response.text();
+                throw new Error(`HTTP error ${response.status}: ${errorDetails}`);
+            }
+            const data = await response.json();
+            return extractGeneratedText(data);
+        }
+
+        function parseChapterDirectory(lines) {
+            const chapters = [];
+            lines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (trimmedLine) {
+                    const separatorIndex = trimmedLine.indexOf(' - ');
+                    if (separatorIndex > 0) {
+                        // Expecting format like "1. Chapter Title - Description"
+                        const titlePart = trimmedLine.substring(0, separatorIndex).trim();
+                        const description = trimmedLine.substring(separatorIndex + 3).trim();
+                        // Extract chapter title, remove initial numbering if present for internal use
+                        const chapterTitle = titlePart.replace(/^\d+\.\s*/, '').trim();
+                        chapters.push({ title: chapterTitle, description });
+                    } else {
+                        // If no separator, treat the whole line as title, add a generic description
+                        const chapterTitle = trimmedLine;
+                        chapters.push({ title: chapterTitle, description: "请根据标题要求，独立、详实地创作本章内容，发挥你的专业能力。" });
+                    }
+                }
+            });
+            return chapters;
+        }
+
+        async function generateSingleChapter(apiKey, bookTitle, chapterDirectoryRaw, globalInstructions, chapter, currentChapterIndex, totalChapters) {
+            const prompt = createChapterGenerationPrompt(bookTitle, chapterDirectoryRaw, globalInstructions, chapter, currentChapterIndex, totalChapters);
+            return callGenerativeAPI(apiKey, prompt);
+        }
+
+        function createDirectoryGenerationPrompt(bookTitle) {
+            return `
+            **Book Title:** "${bookTitle}"
+            **Task:** Generate a comprehensive, logical, and engaging table of contents for a book titled "${bookTitle}". Aim for a reasonable number of chapters, typically between 8-20. Each chapter entry should consist of a clear title and a brief, descriptive summary of its content (this summary will be used by another AI to generate chapter content). Chapters should be numbered sequentially with a dot separator.
+            **Output Format:** Use Markdown. Each chapter entry should be on a new line, formatted as: "NUMBER. Chapter Title - Description of chapter content."
+            **Example:**
+            
+            1. Introduction - Overview of AI in Book Writing
+            2. Understanding Language Models - Fundamentals of how LLMs work.
+            3. Prompt Engineering - Crafting Effective Instructions.
+            
+            **IMPORTANT:** Output ONLY the Markdown table of contents. DO NOT include any introductory or concluding remarks.
+            `;
+        }
+
+        function createChapterGenerationPrompt(bookTitle, chapterDirectoryRaw, globalInstructions, chapter, currentChapterIndex, totalChapters) {
+            // Note: AI's ability to correctly number nested headings '##' and '###' automatically
+            // hinges on its interpretation of the context and its generation capabilities.
+            // We provide the structure and expect it to follow.
+
+            return `
+            **Book Context:**
+            - **Title:** "${bookTitle}"
+            <!-- The following table of contents is for AI's reference ONLY. AI should generate content for ONE chapter at a time, following the structure implied by this TOCl. AI is responsible for numbering its own sub-sections correctly within its generated output. -->
+            <!-- Full Table of Contents for context: -->
+            <!-- ${chapterDirectoryRaw.split('\n').map((line, index) => { const lineParts = line.trim().split(' - '); const title = lineParts[0].trim(); const numberedTitle = `${index + 1}. ${title}`; return numberedTitle; }).join('\n')} -->
+
+            **General Writing Guidelines:**
+            ${globalInstructions || "Produce engaging, accurate, and well-structured text. Use Markdown formatting appropriately. Maintain a consistent style."}
+
+            **Specific Chapter Objective:**
+            - **Main Book Chapter:** ${currentChapterIndex} of ${totalChapters}
+            - **Main Chapter Title:** "${chapter.title}"
+            - **Main Chapter Focus/Description:** "${chapter.description}"
+
+            **Output Format Requirements (Markdown ONLY):**
+            1.  **Main Chapter Title:** MUST start with exactly '# ' followed by the chapter number from the table of contents and its title. Example: '# 1. Introduction: The Dawn of AI'.
+            2.  **Sub-sections:** You MAY use '## ' for sub-sections. The numbering MUST follow the hierarchical structure, continuing from the main chapter number. Example: '## 1.1 The Rise of Language Models'.
+            3.  **Sub-Sub-sections:** You MAY use '### ' for sub-sub-sections. The numbering MUST follow the hierarchy. Example: '### 1.1.1 Neural Network Basics'.
+            4.  **Deepest Heading Level:** Do NOT use headings deeper than '###'.
+            5.  **Further Detail/Points:** For details beyond '###' or for enumerating specific points within a section or sub-section, use standard Markdown unordered lists ('- ' or '* ') or ordered lists ('1. '). The numbering for these lists should be independent within each section/sub-section.
+            6.  **Code Blocks:** Use standard Markdown code blocks for any code examples (e.g., \`\`\`javascript\n code here \n\`\`\`).
+            7.  **Paragraphs:** Ensure content is broken into readable paragraphs.
+            8.  **DO NOT include:** Any introductory phrases (e.g. "Here is the content for chapter...", "AI-generated text for..."), transitional phrases between this chapter and others, summaries, or concluding remarks. Output MUST BE ONLY the chapter content strictly following the specified format.
+
+            **Begin your Markdown output NOW for the content of Chapter "${chapter.title}":**
+            `;
+        }
+
+        function extractGeneratedText(data) {
+            if (data && data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts) {
+                let text = '';
+                data.candidates[0].content.parts.forEach(part => { if (part.text) text += part.text; });
+                return cleanUpAIBoilerplate(text).trim() || "AI 未能生成有效文本。";
+            } else if (data && data.error) {
+                return `API Error: ${data.error.message || JSON.stringify(data.error)}`;
+            } else {
+                return `警告：未能解析 AI 的返回内容：${JSON.stringify(data)}`;
+            }
+        }
+
+        function cleanUpAIBoilerplate(text) {
+            let cleaned = text;
+            const boilerplatePatterns = [
+                /^AI 助手为您生成的内容：/i, /^以下是为您生成的.*内容：/i, /^这是.*章节的内容：/i,
+                /^--- begin chapter content ---/i, /^\[.*\]/i, /AI 创作助手/i, /提供以下内容/i,
+                /根据您的要求，生成.*内容如下：/i, /请注意，AI 生成的内容/i, /以上是.*内容/i,
+                /^[\s\n]*\n/
+            ];
+            boilerplatePatterns.forEach(pattern => { cleaned = cleaned.replace(pattern, '').trim(); });
+
+            if (cleaned.length < 40 && cleaned.match(/^[\w\s.,!?-]*$/) && cleaned.toLowerCase().includes("生成")) {
+                return "";
+            }
+            return cleaned;
+        }
+
+        function assembleBookContent(chapterResults) {
+            let finalHtml = '';
+            chapterResults.forEach(result => {
+                let contentHtml;
+                if (result.success) {
+                    // AI generates raw markdown. We store this raw markdown in generatedBookContentHtml.
+                    // For display, marked.parse will convert this raw markdown into HTML.
+                    contentHtml = result.content;
+                } else {
+                    // Handle errors by showing them as red text within a div
+                    contentHtml = `<p style="color: red; font-weight: bold;">[生成失败] ${result.content}</p>`;
+                }
+                // Wrap each chapter's raw markdown in a div, preceded by an H2 for display purposes.
+                // The H2 title is extracted from the chapter directory for better UI clarity.
+                // The actual markdown rendering will handle #, ##, ### etc. within the contentDiv.
+                const displayTitle = result.chapterTitle.split(' - ')[0] || result.chapterTitle; // Get title part for H2
+                finalHtml += `<h2>${displayTitle}</h2><div class="markdown-content">${contentHtml}</div>\n`;
+            });
+            return finalHtml;
+        }
+
+        function convertHtmlToMarkdown(htmlFragment) {
+            // This function is primarily for exporting/copying the raw markdown.
+            // The 'htmlFragment' passed here is actually the raw markdown content
+            // stored in 'generatedBookContentHtml'.
+            // So, we don't need to parse HTML back to markdown. We return the raw markdown.
+            return htmlFragment; // Return the raw markdown stored in generatedBookContentHtml
+        }
+
+        function resetUI() {
+            bookTitleInput.value = '';
+            chapterDirectoryTextarea.value = '';
+            globalInstructionsTextarea.value = '';
+            outputDiv.innerHTML = ''; // Clear rendered HTML
+            generatedBookContentHtml = ''; // Clear raw markdown
+
+            updateButtonStates(); // Update button states after reset
+
+            loadingTextDiv.textContent = '';
+            spinnerDiv.style.display = 'none';
+        }
+
+        function setLoadingState(isLoading, message = '') {
+            if (isLoading) {
+                generateDirectoryButton.disabled = true;
+                generateFullBookButton.disabled = true;
+                copyMarkdownButton.disabled = true;
+                exportMdButton.disabled = true;
+                spinnerDiv.style.display = 'block';
+                if (message) {
+                    loadingTextDiv.textContent = message;
+                }
+            } else {
+                spinnerDiv.style.display = 'none';
+                loadingTextDiv.textContent = '';
+            }
+        }
+
+        function handleError(error, context) {
+            console.error(`${context}:`, error);
+            const errorMessage = error.message || '未知错误';
+            // Display error message in the output div
+            outputDiv.innerHTML = `<p style="color: red; font-weight: bold;">[${context}] ${errorMessage}</p>`;
+            loadingTextDiv.textContent = `${context} 失败。`;
+        }
+
+        // --- Button State Management ---
+        function updateButtonStates() {
+            const apiKeyFilled = apiKeyInput.value.trim() !== '';
+            const bookTitleFilled = bookTitleInput.value.trim() !== '';
+            const chapterDirectoryFilled = chapterDirectoryTextarea.value.trim() !== '';
+
+            // Enable 'Generate Directory' if API Key and Book Title are filled
+            generateDirectoryButton.disabled = !apiKeyFilled || !bookTitleFilled;
+
+            // Enable 'Generate Full Book' if API Key, Book Title, and Chapter Directory are filled
+            generateFullBookButton.disabled = !apiKeyFilled || !bookTitleFilled || !chapterDirectoryFilled;
+
+            // Enable 'Copy' and 'Export' only if actual content has been generated
+            // Note: generatedBookContentHtml stores the raw markdown generated by AI
+            copyMarkdownButton.disabled = !generatedBookContentHtml;
+            exportMdButton.disabled = !generatedBookContentHtml;
+        }
+
+        // --- Initial Setup and Event Listeners for inputs ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateButtonStates(); // Set initial button states on page load
+
+            // Add listeners to relevant input fields to update button states dynamically
+            apiKeyInput.addEventListener('input', updateButtonStates);
+            bookTitleInput.addEventListener('input', updateButtonStates);
+            chapterDirectoryTextarea.addEventListener('input', updateButtonStates);
+
+            // --- Marked.js Renderer Customization (Optional) ---
+            // You can customize how marked.js renders specific elements if needed.
+            // For example, to ensure AI-generated numbering is preserved.
+            // With the current prompt, AI should generate numbered Markdown, so marked.js will handle it.
+
+        });
+
+    </script>
+</body>
+</html>
